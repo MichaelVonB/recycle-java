@@ -1,39 +1,63 @@
 package com.dddeurope.recycle.domain;
 
-import com.dddeurope.recycle.events.Event;
-import com.dddeurope.recycle.events.FractionWasDropped;
-import com.dddeurope.recycle.events.IdCardRegistered;
-import com.dddeurope.recycle.events.IdCardScannedAtEntranceGate;
-import com.dddeurope.recycle.events.IdCardScannedAtExitGate;
+import com.dddeurope.recycle.events.*;
+import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
+import java.time.LocalDate;
 import java.util.List;
 
+@Service
 public class PriceCalculator {
-    public PriceCalculator(Event... events) {
-        this(Arrays.stream(events).toList());
+
+    private final RecyclingCentre recyclingCentre;
+
+    public PriceCalculator(RecyclingCentre recyclingCentre) {
+        this.recyclingCentre = recyclingCentre;
     }
 
-    public PriceCalculator(List<Event> events) {
+    public void handle(List<Event> events) {
         for (Event event : events) handle(event);
     }
 
     private void handle(Event event) {
         if (event instanceof IdCardRegistered cardRegistered) {
-            // do something with cardRegistered
+            recyclingCentre.register(cardRegistered.address(),
+                    cardRegistered.cardId(),
+                    cardRegistered.city(),
+                    cardRegistered.personId());
         }
         if (event instanceof IdCardScannedAtEntranceGate cardScanned) {
-            // do something with cardScanned
+            recyclingCentre.enter(cardScanned.cardId(), LocalDate.parse(cardScanned.date()));
+        }
+        if (event instanceof ExemptionWasGranted exemptionWasGranted) {
+            recyclingCentre.grantExemption(exemptionWasGranted.cardId(),
+                    exemptionWasGranted.fractionType(),
+                    exemptionWasGranted.weight(),
+                    LocalDate.parse(exemptionWasGranted.expiryDate()));
         }
         if (event instanceof FractionWasDropped fractionDropped) {
-            // do something with fractionDropped
+            recyclingCentre.dropFraction(fractionDropped.cardId(),
+                    fractionDropped.fractionType(),
+                    fractionDropped.weight());
+        }
+        if (event instanceof DiscountWasBought discountWasBought) {
+            recyclingCentre.discountWasBought(discountWasBought.cardId(),
+                    discountWasBought.discountPercentage(),
+                    discountWasBought.weight(),
+                    LocalDate.parse(discountWasBought.expiryDate()),
+                    discountWasBought.fractionType());
         }
         if (event instanceof IdCardScannedAtExitGate cardScanned) {
-            // do something with cardRegistered
+            recyclingCentre.leave(cardScanned.cardId());
         }
     }
 
     public double calculatePrice(String cardId) {
-        return 0;
+        int priceInCent = recyclingCentre.calculatePriceInCent(cardId);
+        return ((double) priceInCent / 100);
+    }
+
+    public void reset() {
+        recyclingCentre.reset(); //each request expects a fresh data state;
     }
 }

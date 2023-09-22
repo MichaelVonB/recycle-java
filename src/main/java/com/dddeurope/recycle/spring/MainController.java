@@ -21,7 +21,13 @@ import java.util.stream.Collectors;
 @RestController
 public class MainController {
 
+    private final PriceCalculator priceCalculator;
+
     private static final Logger LOGGER = LoggerFactory.getLogger(MainController.class);
+
+    public MainController(PriceCalculator priceCalculator) {
+        this.priceCalculator = priceCalculator;
+    }
 
     @GetMapping("/")
     public String home() {
@@ -36,26 +42,22 @@ public class MainController {
     @PostMapping("/handle-command")
     public ResponseEntity<EventMessage> handle(@RequestBody RecycleRequest request) {
         LOGGER.info("Incoming Request: {}", request.asString());
-
-        // If you have no inspiration to start implementing, uncomment this part:
-        // PriceCalculator calculator = new PriceCalculator(eventsOf(request));
-        // CalculatePrice command = commandOf(request);
-        // double amount = calculator.calculatePrice(command.cardId());
-        // return ResponseEntity.ok(new EventMessage(
-        //     UUID.randomUUID().toString(),
-        //     new PriceWasCalculated(command.cardId(), amount, "EUR")
-        // ));
-
+        
+        List<Event> events = eventsOf(request);
+        priceCalculator.handle(events);
+        CalculatePrice command = commandOf(request);
+        double amount = priceCalculator.calculatePrice(command.cardId());
+        priceCalculator.reset();
         return ResponseEntity.ok(new EventMessage(
-            UUID.randomUUID().toString(),
-            new PriceWasCalculated("123", 1, "EUR")
+                UUID.randomUUID().toString(),
+                new PriceWasCalculated(command.cardId(), amount, "EUR")
         ));
     }
 
     private List<Event> eventsOf(RecycleRequest request) {
         return request.history().stream()
-            .map(EventMessage::getPayload)
-            .collect(Collectors.toList());
+                .map(EventMessage::getPayload)
+                .collect(Collectors.toList());
     }
 
     private CalculatePrice commandOf(RecycleRequest request) {
@@ -66,8 +68,8 @@ public class MainController {
 
         public String asString() {
             var historyAsString = history.stream()
-                .map(EventMessage::toString)
-                .collect(Collectors.joining("\n\t"));
+                    .map(EventMessage::toString)
+                    .collect(Collectors.joining("\n\t"));
 
             return String.format("%n%s %nWith History\n\t%s", command, historyAsString);
         }
